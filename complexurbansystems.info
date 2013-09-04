@@ -1,0 +1,6 @@
+name = Complexurbansystems
+description = Complexurbansystems site. 
+package = Complexurbansystems
+core = 7.x 
+version = VERSION 
+files[] = complexurbansystems.module

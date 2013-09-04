@@ -1,0 +1,165 @@
+<?php
+module_load_include('inc', 'complexurbansystems', 'complexurbansystems_user');
+module_load_include('inc', 'user', 'user.pages');
+
+/* Implements hook_menu_alter */
+
+function complexurbansystems_menu_alter(&$items) {
+  $items['forward']['page callback'] = 'complexurbansystems_forward';
+
+}
+
+function complexurbansystems_forward() {
+  if (module_exists('modalframe')) {
+    // Send the Modal Frame javascript for parent windows to the page.
+
+    modalframe_parent_js();
+    // Add the client-side behaviors for the examples.
+
+    drupal_add_js(drupal_get_path('module', 'modalframe_example') . '/modalframe_example.js');
+  }
+
+  drupal_add_html_head('<meta name="robots" content="noindex, nofollow" />', $key = NULL);
+  $nid = NULL;
+  if (empty($_GET['path']) || ($_GET['path'] == 'node/0')) {
+    return t('No path was selected to forward');
+  }
+  if (url_is_external($_GET['path'])) {
+    return t('You cannot forward an external URL.');
+  }
+
+  if (!empty($_GET['path'])) {
+    $form_state['values']['path'] = drupal_get_normal_path($_GET['path']);
+    $ret = preg_match("/^node\/(.*)/i", $form_state['values']['path'], $matches);
+    if ($ret == 1) {
+      $nid = $matches[1];
+    }
+  }
+  if (is_numeric($nid)) {
+    // we have a node
+
+    $node = node_load($nid);
+    if (!node_access('view', $node)) {
+      // Access is denied
+
+      return drupal_access_denied();
+    }
+    $form_state['values']['path'] = 'node/' . $node->nid;
+  }
+  else {
+    $args = explode('/', $form_state['values']['path']);
+    if ($args[0] == 'admin') {
+      return drupal_access_denied();
+    }
+    $node = new stdClass();
+    $node->title = $form_state['values']['path'];
+  }
+
+  if ($form_state['values']['path'] == 'epostcard') {
+    $emailtype = 'postcard';
+    drupal_set_title(t(variable_get('forward_epostcard_title', 'Send an e-Postcard')));
+  }
+  else {
+    $emailtype = 'page';
+    if (!empty($_GET['cid'])) {
+      $cid = '?cid=' . $_GET['cid'];
+      $form_state['values']['path'] .= $cid;
+    }
+    drupal_set_title(t(variable_get('forward_email_title', 'Forward this page to a friend')));
+  }
+
+  $breadcrumb = array (
+        l("Home", ""),
+        l("All news", "news"),
+        l($node->title, "node/" . $nid),
+      );
+
+  drupal_set_breadcrumb($breadcrumb);
+
+  return drupal_get_form('forward_form', $form_state['values']['path'], $node->title);
+
+}
+
+
+
+
+/**
+ * Implements hook_block_info().
+ */
+
+function complexurbansystems_block_info() {
+  $blocks['complexurbansystems_form'] = array(
+      'info' => t('Collaboration request'),
+      'status' => TRUE,
+      'region' => 'content',
+      'weight' => 0,
+      'visibility' => BLOCK_VISIBILITY_LISTED,
+      'pages' => 'node/1'
+  );
+  $blocks['complexurbansystems_reg_form'] = array(
+      'info' => t('User register form'),
+      'status' => TRUE,
+      'region' => 'content',
+      'weight' => 0,
+      'visibility' => BLOCK_VISIBILITY_LISTED,
+      'pages' => 'node/1'
+  );
+  $blocks['complexurbansystems_pass_form'] = array(
+      'info' => t('Request new password'),
+      'status' => TRUE,
+      'region' => 'content',
+      'weight' => 0,
+      'visibility' => BLOCK_VISIBILITY_LISTED,
+      'pages' => 'node/1'
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+
+function complexurbansystems_block_view($delta = '') {
+  switch ($delta) {
+    case 'complexurbansystems_form':
+      $block['content'] = complexurbansystems_form_block_contents($delta);
+      return $block;
+    case 'complexurbansystems_reg_form':
+      $block['content'] = complexurbansystems_register_form_block_contents($delta);
+      return $block;
+    case 'complexurbansystems_pass_form':
+      $block['content'] = complexurbansystems_password_form_block_contents($delta);
+      return $block;
+  }
+
+}
+
+function complexurbansystems_form_block_contents($delta) {
+
+  return "<div style='display:none'><div id='contact-form'>".drupal_render(drupal_get_form('complexurbansystems_contact_form'))."</div></div>";
+
+}
+
+function complexurbansystems_register_form_block_contents($delta) {
+
+  return "<div style='display:none'><div id='register-form'>".drupal_render(drupal_get_form('user_register_form'))."</div></div>";
+
+}
+
+function complexurbansystems_password_form_block_contents($delta) {
+  return "<div style='display:none'><div id='request-password-form'>".drupal_render(drupal_get_form('user_pass'))."</div></div>";
+
+}
+
+/**
+ * Implements hook_mail().
+ */
+function complexurbansystems_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'collaboration_request':
+      $message['subject'] = t('Collaboration form');
+      $message['body'] = $params['body'];
+      break;
+  }
+}
+
